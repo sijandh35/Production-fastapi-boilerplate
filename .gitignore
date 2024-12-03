@@ -1,0 +1,9 @@
+.dist
+.vscode/
+venv/
+*.gguf
+*.ggml
+.env
+__pycache__
+DockerData
+

@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+requests
+psycopg2-binary
+asyncpg
+aiohttp
+sqlalchemy
+alembic
+pydantic-settings
+pymongo
+redis
+GeoAlchemy2
+celery[redis]

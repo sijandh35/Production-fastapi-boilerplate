@@ -1,0 +1,135 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile_backend
+    ports:
+      - 8045:8000
+    env_file: ./envs/.env
+    volumes:
+      - ./:/code
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --workers 8
+    restart: always
+    networks:
+      - boilerplate_network
+    depends_on:
+      - redis
+      - mongodb
+
+  normal-tasks:
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile_backend
+    env_file: ./envs/.env
+    volumes:
+      - ./:/code
+    command: celery -A workers.celery worker --loglevel=info --queues=default --autoscale=10,3 --prefetch-multiplier=10
+    restart: always
+    networks:
+      - boilerplate_network
+    depends_on:
+      - redis
+
+  high-throughput-smaller-tasks:
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile_backend
+    env_file: ./envs/.env
+    volumes:
+      - ./:/code
+    command: celery -A workers.celery worker --loglevel=info --queues=high_priority --autoscale=20,5 
+    restart: always
+    networks:
+      - boilerplate_network
+    depends_on:
+      - redis
+
+  large-tasks:
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile_backend
+    env_file: ./envs/.env
+    volumes:
+      - ./:/code
+    command: celery -A workers.celery worker --loglevel=info --queues=low_priority --prefetch-multiplier=1
+    restart: always
+    networks:
+      - boilerplate_network
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:latest
+    ports:
+      - 6379:6379
+    networks:
+      - boilerplate_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+
+  db:
+    image: postgis/postgis:14-3.4-alpine
+    restart: always
+    volumes:
+      - ./DockerData/building_db_data:/var/lib/postgresql/data/
+    env_file: ./envs/.env
+    ports:
+      - ${DB_PORT:-5432}:5432
+    networks:
+      - boilerplate_network
+    container_name: db
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres_db"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 5s
+
+  migrations:
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile_backend
+    container_name: migrations
+    volumes:
+      - ./:/code
+    depends_on:
+      app:
+        condition: service_started
+      db:
+        condition: service_healthy
+    env_file:
+      - ./envs/.env
+    networks:
+      - boilerplate_network
+    entrypoint: ["alembic", "upgrade", "head"]
+    restart: "no"
+
+  mongodb:
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile_mongo
+    ports:
+      - 27017:27017
+    env_file: ./envs/.env
+    volumes:
+      - dbdata6:/data/db
+      - ./entrypoints/initmongo/:/docker-entrypoint-initdb.d/
+    networks:
+      - boilerplate_network
+    healthcheck:
+      test: ["CMD", "mongo", "--eval", "db.runCommand('ping').ok"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  dbdata6:
+
+networks:
+  boilerplate_network:
+    driver: bridge
