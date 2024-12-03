@@ -7,3 +7,4 @@ venv/
 __pycache__
 DockerData
 celerybeat-schedule
+docker-compose.yml

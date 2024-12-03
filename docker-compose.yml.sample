@@ -60,6 +60,20 @@ services:
     depends_on:
       - redis
 
+  celery-beat:
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile_backend
+    env_file: ./envs/.env
+    volumes:
+      - ./:/code
+    command: celery -A workers.celery beat --loglevel=info
+    restart: always
+    networks:
+      - boilerplate_network
+    depends_on:
+      - redis
+
   redis:
     image: redis:latest
     ports:
@@ -76,7 +90,7 @@ services:
     image: postgis/postgis:14-3.4-alpine
     restart: always
     volumes:
-      - ./DockerData/building_db_data:/var/lib/postgresql/data/
+      - ./DockerData/pg_data:/var/lib/postgresql/data/
     env_file: ./envs/.env
     ports:
       - ${DB_PORT:-5432}:5432
